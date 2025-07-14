@@ -1,3 +1,12 @@
+## QuoteGen
+
+Wtf why do you need to pay someone $30/yr to make a quote? 
+
+I just vibe coded it up in 30 mins. Everything works from client side. 
+
+
+---
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

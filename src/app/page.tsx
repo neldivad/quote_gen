@@ -1,103 +1,214 @@
-import Image from "next/image";
+"use client";
+import React, { useRef, useState, useEffect } from "react";
 
-export default function Home() {
+export default function QuoteGen() {
+  const [quote, setQuote] = useState("");
+  const [quoter, setQuoter] = useState("");
+  const [watermark, setWatermark] = useState("");
+  const [image, setImage] = useState<string | null>(null);
+  const [imageObj, setImageObj] = useState<HTMLImageElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [canvasSize, setCanvasSize] = useState({ width: 500, height: 500 });
+
+  useEffect(() => {
+    if (!image) return;
+    const img = new window.Image();
+    img.onload = () => {
+      setCanvasSize({ width: img.width, height: img.height });
+      setImageObj(img);
+    };
+    img.src = image;
+  }, [image]);
+
+  function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, font: string) {
+    ctx.font = font;
+    const words = text.split(" ");
+    const lines: string[] = [];
+    let line = "";
+    for (let w of words) {
+      const testLine = line ? line + " " + w : w;
+      const { width } = ctx.measureText(testLine);
+      if (width > maxWidth && line) {
+        lines.push(line);
+        line = w;
+      } else {
+        line = testLine;
+      }
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  useEffect(() => {
+    if (!imageObj || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Draw image with reduced opacity
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.drawImage(imageObj, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
+    if (!quote) return;
+
+    // Auto-fit font size for both width and height
+    let fontSize = Math.floor(canvas.height / 12);
+    const minFontSize = 14;
+    let lines: string[] = [];
+    let font = `bold ${fontSize}px sans-serif`;
+    let totalTextHeight = 0;
+    const maxWidth = canvas.width * 0.8;
+    const maxHeight = canvas.height * 0.5; // slightly less to make room for quoter
+    while (fontSize >= minFontSize) {
+      font = `bold ${fontSize}px sans-serif`;
+      lines = wrapText(ctx, quote, maxWidth, font);
+      totalTextHeight = lines.length * fontSize * 1.2;
+      if (totalTextHeight <= maxHeight) break;
+      fontSize -= 2;
+    }
+    // If still doesn't fit, truncate and add ellipsis
+    if (totalTextHeight > maxHeight) {
+      let allowedLines = Math.floor(maxHeight / (fontSize * 1.2));
+      if (allowedLines < 1) allowedLines = 1;
+      lines = lines.slice(0, allowedLines);
+      if (lines.length > 0) {
+        let last = lines[lines.length - 1];
+        while (ctx.measureText(last + "…").width > maxWidth && last.length > 0) {
+          last = last.slice(0, -1);
+        }
+        lines[lines.length - 1] = last + "…";
+      }
+    }
+    // Calculate space for quoter if present
+    let quoterFontSize = Math.max(fontSize * 0.7, 12);
+    let quoterHeight = quoter ? quoterFontSize * 1.5 : 0;
+    // Draw background for text (higher opacity)
+    const yStart = canvas.height / 2 - (lines.length * fontSize * 1.2 + quoterHeight) / 2;
+    ctx.save();
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(
+      canvas.width * 0.1,
+      yStart - fontSize * 0.6,
+      canvas.width * 0.8,
+      lines.length * fontSize * 1.2 + fontSize * 1.2 + quoterHeight
+    );
+    ctx.restore();
+    // Draw quote text
+    ctx.font = font;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#222";
+    lines.forEach((l, i) => {
+      ctx.fillText(
+        l,
+        canvas.width / 2,
+        yStart + i * fontSize * 1.2 + fontSize / 2
+      );
+    });
+    // Draw quoter if present
+    if (quoter) {
+      ctx.font = `italic ${quoterFontSize}px sans-serif`;
+      ctx.fillStyle = "#444";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(
+        `— ${quoter}`,
+        canvas.width / 2,
+        yStart + lines.length * fontSize * 1.2 + quoterFontSize
+      );
+    }
+    // Draw watermark if present
+    if (watermark) {
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      ctx.font = `bold 14px sans-serif`;
+      ctx.fillStyle = "#222";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(
+        watermark,
+        canvas.width - 12,
+        canvas.height - 10
+      );
+      ctx.restore();
+    }
+  }, [imageObj, quote, quoter, watermark, canvasSize]);
+
+  function handleImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setImage(ev.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function handleDownload() {
+    if (!canvasRef.current) return;
+    const url = canvasRef.current.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "quote.png";
+    a.click();
+  }
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-100 to-gray-300 p-4">
+      <div className="bg-white rounded-xl shadow-lg p-8 flex flex-col gap-4 w-full max-w-md">
+        <h1 className="text-2xl font-bold text-center mb-2">Quote Generator</h1>
+        <textarea
+          className="border rounded p-2 w-full resize-none min-h-[80px] focus:outline-blue-400"
+          placeholder="Enter your quote..."
+          value={quote}
+          onChange={e => setQuote(e.target.value)}
         />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+        <input
+          type="text"
+          className="border rounded p-2 w-full"
+          placeholder="Who said it? (optional)"
+          value={quoter}
+          onChange={e => setQuoter(e.target.value)}
+        />
+        <input
+          type="text"
+          className="border rounded p-2 w-full"
+          placeholder="Watermark (optional)"
+          value={watermark}
+          onChange={e => setWatermark(e.target.value)}
+        />
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleImage}
+          className="w-full"
+        />
+        <button
+          className="bg-blue-600 text-white rounded px-4 py-2 font-semibold hover:bg-blue-700 transition disabled:opacity-50"
+          onClick={handleDownload}
+          disabled={!imageObj || !quote}
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          Download Quote Image
+        </button>
+      </div>
+      <div className="mt-8 flex flex-col items-center">
+        <canvas
+          ref={canvasRef}
+          width={canvasSize.width}
+          height={canvasSize.height}
+          style={{
+            maxWidth: "350px",
+            maxHeight: "350px",
+            borderRadius: "1rem",
+            boxShadow: "0 2px 16px #0002",
+            background: "#eee",
+            margin: "auto"
+          }}
+        />
+        <div className="text-xs text-gray-500 mt-2">Preview</div>
+      </div>
     </div>
   );
 }
