@@ -25,7 +25,7 @@ export default function QuoteGen() {
     const words = text.split(" ");
     const lines: string[] = [];
     let line = "";
-    for (let w of words) {
+    for (const w of words) {
       const testLine = line ? line + " " + w : w;
       const { width } = ctx.measureText(testLine);
       if (width > maxWidth && line) {
@@ -81,8 +81,8 @@ export default function QuoteGen() {
       }
     }
     // Calculate space for quoter if present
-    let quoterFontSize = Math.max(fontSize * 0.7, 12);
-    let quoterHeight = quoter ? quoterFontSize * 1.5 : 0;
+    const quoterFontSize = Math.max(fontSize * 0.7, 12);
+    const quoterHeight = quoter ? quoterFontSize * 1.5 : 0;
     // Draw background for text (higher opacity)
     const yStart = canvas.height / 2 - (lines.length * fontSize * 1.2 + quoterHeight) / 2;
     ctx.save();
